@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package= ".";
+
+service AuthService {
+  rpc AddOrUpdatePermission (PermissionRequest) returns (PermissionResponse) {}
+}
+
+message PermissionRequest {
+  string url = 1;
+  string user = 2;
+  string permissions = 3;
+}
+
+message PermissionResponse {
+  bool success = 1;
+  string message = 2;
+}
