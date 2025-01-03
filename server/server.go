@@ -15,7 +15,7 @@ import (
 
 const (
 	port      = ":50051"
-	authzFile = "/home/app/svnconfig/authz"
+	authzFile = "./authz"
 )
 
 type server struct {
