@@ -10,16 +10,30 @@ import (
 	pb "github.com/zy410692/svngrpc/client/pb"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+)
+
+const (
+	address = "localhost:50051"
+	// 添加认证token，需要和服务端匹配
+	token = "your-secret-token"
 )
 
 func main() {
-	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("无法连接服务器: %v", err)
+		fmt.Printf("连接失败: %v\n", err)
+		return
 	}
 	defer conn.Close()
 
-	client := pb.NewAuthServiceClient(conn)
+	c := pb.NewAuthServiceClient(conn)
+
+	// 创建带有认证token的上下文
+	md := metadata.New(map[string]string{
+		"authorization": token,
+	})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 	// 创建测试用例结构体
 	type TestCase struct {
@@ -63,7 +77,8 @@ func main() {
 		go func(tc TestCase) {
 			defer wg.Done()
 
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			// 使用带认证的ctx创建超时上下文
+			timeoutCtx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
 
 			req := &pb.PermissionRequest{
@@ -72,7 +87,8 @@ func main() {
 				Permissions: tc.permissions,
 			}
 
-			resp, err := client.AddOrUpdatePermission(ctx, req)
+			// 使用带认证的timeoutCtx发送请求
+			resp, err := c.AddOrUpdatePermission(timeoutCtx, req)
 			if err != nil {
 				log.Printf("处理请求失败 - URL: %s, 用户: %s, 权限: %s, 错误: %v",
 					tc.url, tc.user, tc.permissions, err)

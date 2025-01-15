@@ -11,11 +11,15 @@ import (
 	pb "github.com/zy410692/svngrpc/server/pb"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 const (
-	port      = ":50051"
-	authzFile = "/home/app/svnconfig/authz"
+	port       = ":50051"
+	authzFile  = "./authz"
+	validToken = "your-secret-token"
 )
 
 type server struct {
@@ -85,13 +89,33 @@ func (s *server) AddOrUpdatePermission(ctx context.Context, req *pb.PermissionRe
 	}, nil
 }
 
+func authInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "无元数据")
+	}
+
+	token := md["authorization"]
+	if len(token) == 0 {
+		return nil, status.Errorf(codes.Unauthenticated, "未提供认证token")
+	}
+
+	if token[0] != validToken {
+		return nil, status.Errorf(codes.Unauthenticated, "无效的token")
+	}
+
+	return handler(ctx, req)
+}
+
 func main() {
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
 		fmt.Printf("failed to listen: %v\n", err)
 		return
 	}
-	s := grpc.NewServer()
+	s := grpc.NewServer(
+		grpc.UnaryInterceptor(authInterceptor),
+	)
 	pb.RegisterAuthServiceServer(s, &server{})
 	fmt.Printf("服务器启动在 %s\n", port)
 	if err := s.Serve(lis); err != nil {
